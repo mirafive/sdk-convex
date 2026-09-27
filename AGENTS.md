@@ -44,3 +44,7 @@ build the sibling repo and `bun link` it; never commit a `file:` path or `overri
   the `deliver` / `flushOutbox` run instead.
 - Comments only for a non-obvious constraint, one or two lines.
 - Do not run git write commands unless asked; the maintainer commits.
+
+## Releasing
+
+To release, bump `version` in `package.json` (and any SDK version constant), add a `## X.Y.Z — YYYY-MM-DD` section to `CHANGELOG.md`, commit, then `git tag vX.Y.Z && git push origin vX.Y.Z`. `.github/workflows/release.yml` checks both, runs `bun run check`, publishes to npm through trusted publishing (no token) and creates the GitHub release from the changelog section. Never `npm publish` from a laptop.
