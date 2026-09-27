@@ -14,6 +14,7 @@ const modules = import.meta.glob(["./convex/**/*.{ts,js}", "!./convex/**/*.d.ts"
 
 interface Sent {
   readonly url: string
+  readonly raw: string
   readonly auth: string | null
   readonly body: {
     readonly batch: string
@@ -41,7 +42,7 @@ beforeEach(() => {
     const body = JSON.parse(init.body as string) as Sent["body"]
     const answer = answers.shift() ?? {}
 
-    sent.push({ url, auth: new Headers(init.headers).get("authorization"), body })
+    sent.push({ url, raw: init.body as string, auth: new Headers(init.headers).get("authorization"), body })
 
     return Response.json(
       { batch: body.batch, accepted: body.events.length, dropped: 0, ...answer.body },
@@ -124,8 +125,10 @@ describe("scheduling from a mutation", () => {
     ])
   })
 
-  it("reuses the key minted at enqueue when the delivery is retried", async () => {
+  it("resends the byte-identical batch when the delivery is retried", async () => {
     vi.useFakeTimers()
+    // Queued long before the runs below, so a sentAt or time taken at delivery would differ.
+    vi.setSystemTime(1_000_000)
     const t = convexTest(schema, modules)
 
     await t.mutation(api.app.pay, { total: 49 })
@@ -141,13 +144,11 @@ describe("scheduling from a mutation", () => {
     await t.action(internal.mirafive.deliver, args)
 
     expect(sent).toHaveLength(5)
-    expect(new Set(sent.map((request) => request.body.batch)).size).toBe(1)
-    // sentAt is fixed at queue time, so every run hands sdk-server the same batch.
-    expect(typeof args.sentAt).toBe("number")
-    expect(send.mock.calls.map(([, options]) => options)).toEqual([
-      { idempotencyKey: args.idempotencyKey, sentAt: args.sentAt },
-      { idempotencyKey: args.idempotencyKey, sentAt: args.sentAt }
-    ])
+    // Key, sentAt and every event's time are fixed at queue time: each run sends the same bytes.
+    expect(new Set(sent.map((request) => request.raw)).size).toBe(1)
+    expect(args.sentAt).toBe(1_000_000)
+    expect(sent[0]?.body).toMatchObject({ sentAt: 1_000_000, events: [{ time: 1_000_000 }] })
+    expect(send).toHaveBeenCalledTimes(2)
   })
 
   it("never fails the caller's transaction over an event Convex or JSON cannot carry", async () => {
@@ -159,18 +160,25 @@ describe("scheduling from a mutation", () => {
     await t.mutation(api.app.odd, { outbox: true })
 
     expect(await t.run((ctx) => ctx.db.query("orders").collect())).toHaveLength(2)
-    expect(warn).toHaveBeenCalledTimes(2)
-    expect(String(warn.mock.calls[0]?.[0])).toContain("bigint")
+    expect(warn.mock.calls.map(([message]) => String(message))).toEqual([
+      expect.stringContaining("dropped bigint"),
+      expect.stringContaining("dropped bigint")
+    ])
 
     await t.finishAllScheduledFunctions(vi.runAllTimers)
     tick()
     await t.action(internal.outbox.flushOutbox, {})
 
-    const odd = { $weird: 1, größe: "XL", ["k".repeat(1100)]: true }
+    const odd = { $weird: 1, größe: "XL", _hidden: true }
 
+    // The scheduled path sends one delivery per track(); the outbox sends the rows as one batch.
     expect(sent.map((request) => request.body.events.map((event) => event["properties"]))).toEqual([
       [odd],
       [odd]
+    ])
+    expect(warn.mock.calls.slice(2).map(([message]) => String(message))).toEqual([
+      expect.stringContaining("long key: property keys have at most 128 characters"),
+      expect.stringContaining("long key: property keys have at most 128 characters")
     ])
   })
 
@@ -254,9 +262,9 @@ describe("outbox", () => {
 
     expect(await outboxRows(t)).toHaveLength(0)
     expect(sent).toHaveLength(5)
-    expect(new Set(sent.map((request) => request.body.batch)).size).toBe(1)
-    // A later flush of the same rows passes the same sentAt, taken from the rows.
-    expect(send.mock.calls[0]?.[1]).toEqual(send.mock.calls[1]?.[1])
+    // A later flush of the same rows sends the same bytes: key and sentAt come from the rows.
+    expect(new Set(sent.map((request) => request.raw)).size).toBe(1)
+    expect(send).toHaveBeenCalledTimes(2)
   })
 
   it("does not wedge on events the server refuses", async () => {

@@ -234,12 +234,13 @@ Types: `MiraConvexOptions`, `TrackOptions`, `TrackEvent`, `SchedulingCtx`, `Enqu
   sends from a mutation; delivery happens in the `deliver` action or the `flushOutbox`
   cron, both in the default Convex runtime.
 - Events travel as JSON strings, in the scheduler's arguments and in outbox rows, so
-  property keys Convex refuses as field names (`$…`, non-ASCII, over 1024 characters) are
-  fine. An event JSON cannot carry (a `BigInt`, a cycle) is dropped with a warning; it never
+  property keys Convex refuses as field names (`$…`, `_…`, non-ASCII) are fine; the
+  protocol's own limits (keys up to 128 characters, PROTOCOL §3) still apply. An event JSON cannot carry (a `BigInt`, a cycle) is dropped with a warning; it never
   fails the caller's transaction.
 - `deliver` sends with `@mirafive/sdk-server`: three retries on 408, 429, 5xx, network
-  errors and timeouts. The idempotency key and `sentAt` are fixed when the event is queued
-  (for the outbox: taken from the rows), so a rerun of the action sends the same batch. If
+  errors and timeouts. The idempotency key, `sentAt` and every event's `time` are fixed when
+  the event is queued (for the outbox: taken from the rows), so a rerun of the action sends
+  the byte-identical batch. If
   every retry fails, the action fails and shows up in the Convex logs (and a workpool
   retries it).
 - Events the server refuses (`400 validation_failed`, or refused before sending as an
@@ -269,7 +270,7 @@ Types: `MiraConvexOptions`, `TrackOptions`, `TrackEvent`, `SchedulingCtx`, `Enqu
 | `[mirafive] the server dropped N events: …` | `allowance_exhausted` or `ingestion_paused` on the source in MIRA FIVE. |
 | `TypeError: consentless mode …` | Identifiers in consentless mode; remove them or switch the mode. |
 | `TypeError: time must be …` | `time` is not a `Date`, epoch ms or parseable date string. |
-| `[mirafive] dropped an event the server refuses` | A name starting with `$` that is not reserved, a blank id, a non-UUID `sessionId`, or properties over the limits (PROTOCOL §3). |
+| `[mirafive] dropped an event the server refuses` | A name starting with `$` that is not reserved, a blank id, a non-UUID `sessionId`, or properties over the limits (keys over 128 characters, over 32 KB, PROTOCOL §3). |
 | The outbox grows | Deliveries fail (see the `flushOutbox` runs in the logs), typically a wrong key: rows are kept until it is fixed. |
 
 ## For AI agents

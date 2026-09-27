@@ -300,13 +300,11 @@ export class MiraConvex<E extends Events = Events> {
 
   async #send(events: QueuedEvent[], idempotencyKey: string, sentAt: number): Promise<null> {
     const { key, host, mode } = this.#options
-    // Not an inline literal: sdk-server versions without the `sentAt` option ignore it.
-    const options = { idempotencyKey, sentAt }
 
     this.#mira ??= new Mira({ key, host: host || undefined, mode })
 
     try {
-      const { dropped, reason } = await this.#mira.send(events, options)
+      const { dropped, reason } = await this.#mira.send(events, { idempotencyKey, sentAt })
 
       if (dropped > 0 && !QUIET.has(reason)) {
         warn(`the server dropped ${dropped} events: ${reason}`)

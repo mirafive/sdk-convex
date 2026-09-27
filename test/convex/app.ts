@@ -67,7 +67,11 @@ export const odd = mutationGeneric({
     const client = outbox ? outboxed : plain
 
     await ctx.db.insert("orders", { total: 7 })
-    await client.track(ctx, "odd keys", { properties: { $weird: 1, größe: "XL", ["k".repeat(1100)]: true } })
+    // Legal on the wire, refused by Convex as field names.
+    await client.track(ctx, "odd keys", { properties: { $weird: 1, größe: "XL", _hidden: true } })
+    // Not JSON at all: dropped at the call.
     await client.track(ctx, "bigint", { properties: { amount: 10n } })
+    // JSON, but over the protocol's 128-character key limit: refused by sdk-server at delivery.
+    await client.track(ctx, "long key", { properties: { ["k".repeat(200)]: true } })
   }
 })

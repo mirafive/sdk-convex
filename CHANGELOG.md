@@ -19,8 +19,9 @@ Rebuilt from scratch on `@mirafive/sdk-server` 0.5 and the v1 ingest protocol.
 - Events are queued as JSON strings (scheduler arguments and `event: v.string()` outbox
   rows), so property keys Convex refuses as field names are fine; an event JSON cannot
   carry (`BigInt`, cycles) is dropped with a warning instead of failing the caller's
-  transaction. `sentAt` is fixed at queue time (from the rows for the outbox) and passed
-  to sdk-server, so reruns send the same batch.
+  transaction. `sentAt` and each event's `time` are fixed at queue time (from the rows
+  for the outbox) and `sentAt` is passed to sdk-server's `send()`, so a rerun sends the
+  byte-identical batch.
 - Events the server refuses (`400 validation_failed`, `invalid_event`,
   `payload_too_large`) are isolated by halving the batch and dropped one by one, so they
   never block the rest; other refusals (`collection_mode_not_allowed`, `invalid_json`)
