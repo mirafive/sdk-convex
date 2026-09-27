@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 — unreleased
+## 1.0.0 — 2026-09-27
 
 Rebuilt from scratch on `@mirafive/sdk-server` 1.0 and the v1 ingest protocol.
 
