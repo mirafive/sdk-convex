@@ -20,12 +20,10 @@ bun run size             # size-limit against the limit in package.json (peers e
 - `test/convex/`: a small Convex app the tests run with `convex-test`;
   `_generated/api.ts` is a stand-in for codegen, which convex-test needs to find the root.
 
-## Local dependency on sdk-server
+## Dependency on sdk-server
 
-`@mirafive/sdk-server` is a devDependency as `file:../sdk-server` while it is unpublished
-(its `dist/` must be built: `bun run build` there). Once 1.0.0 is on npm, switch the
-devDependency to `^1.0.0` and refresh `bun.lock`; CI cannot resolve the `file:` path. The
-peer range is already `^1.0.0`.
+`@mirafive/sdk-server` is an ordinary `^1.0.0` dependency from npm. To try an unreleased change,
+build the sibling repo and `bun link` it; never commit a `file:` path or `overrides`.
 
 ## Rules
 

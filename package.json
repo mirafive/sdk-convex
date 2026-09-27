@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
-    "@mirafive/sdk-server": "file:../sdk-server",
+    "@mirafive/sdk-server": "^1.0.0",
     "@size-limit/preset-small-lib": "^14.0.1",
     "@types/node": "^26.6.3",
     "convex": "^1.46.0",
