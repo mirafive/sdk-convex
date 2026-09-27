@@ -23,9 +23,9 @@ bun run size             # size-limit against the limit in package.json (peers e
 ## Local dependency on sdk-server
 
 `@mirafive/sdk-server` is a devDependency as `file:../sdk-server` while it is unpublished
-(its `dist/` must be built: `bun run build` there). Once 0.5.0 is on npm, switch the
-devDependency to `^0.5.0` and refresh `bun.lock`; CI cannot resolve the `file:` path. The
-peer range is already `^0.5.0`.
+(its `dist/` must be built: `bun run build` there). Once 1.0.0 is on npm, switch the
+devDependency to `^1.0.0` and refresh `bun.lock`; CI cannot resolve the `file:` path. The
+peer range is already `^1.0.0`.
 
 ## Rules
 

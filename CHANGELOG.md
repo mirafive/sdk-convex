@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.5.0 — unreleased
+## 1.0.0 — unreleased
 
-Rebuilt from scratch on `@mirafive/sdk-server` 0.5 and the v1 ingest protocol.
+Rebuilt from scratch on `@mirafive/sdk-server` 1.0 and the v1 ingest protocol.
 
 - `MiraConvex`: `track()`, `trackMany()` and `identify()` from mutations and actions. A
   mutation schedules the delivery with `runAfter(0)`, so a rolled-back transaction sends

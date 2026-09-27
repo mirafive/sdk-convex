@@ -1,6 +1,6 @@
 {
   "name": "@mirafive/sdk-convex",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "description": "Record MIRA FIVE events from Convex mutations and actions: scheduled after commit, never sent for a rolled-back transaction.",
   "keywords": [
     "analytics",
@@ -60,7 +60,7 @@
     "vitest": "^5.0.2"
   },
   "peerDependencies": {
-    "@mirafive/sdk-server": "^0.5.0",
+    "@mirafive/sdk-server": "^1.0.0",
     "convex": "^1.25.0"
   },
   "size-limit": [

@@ -20,7 +20,7 @@ npm install @mirafive/sdk-convex @mirafive/sdk-server
 # or: bun add / pnpm add / yarn add
 ```
 
-Peers: `convex` ≥ 1.25 and `@mirafive/sdk-server` 0.5. Runs in Convex's default runtime;
+Peers: `convex` ≥ 1.25 and `@mirafive/sdk-server` 1.0. Runs in Convex's default runtime;
 no `"use node"`.
 
 ## Quickstart
