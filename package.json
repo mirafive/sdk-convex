@@ -1,0 +1,79 @@
+{
+  "name": "@mirafive/sdk-convex",
+  "version": "0.5.0",
+  "description": "Record MIRA FIVE events from Convex mutations and actions: scheduled after commit, never sent for a rolled-back transaction.",
+  "keywords": [
+    "analytics",
+    "convex",
+    "gdpr",
+    "mirafive",
+    "privacy",
+    "server"
+  ],
+  "homepage": "https://mirafive.io",
+  "bugs": {
+    "email": "support@mirafive.io"
+  },
+  "license": "MIT",
+  "author": "MIRA FIVE <support@mirafive.io>",
+  "repository": "github:mirafive/sdk-convex",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --type-aware --deny-warnings",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "size": "size-limit",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build && publint --strict && attw --pack --profile esm-only && size-limit"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@mirafive/sdk-server": "file:../sdk-server",
+    "@size-limit/preset-small-lib": "^14.0.1",
+    "@types/node": "^26.6.3",
+    "convex": "^1.46.0",
+    "convex-test": "^0.0.60",
+    "oxfmt": "^0.70.0",
+    "oxlint": "^1.85.0",
+    "oxlint-tsgolint": "^7.0.2003",
+    "publint": "^0.3.24",
+    "size-limit": "^14.0.1",
+    "tsdown": "^0.23.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  },
+  "peerDependencies": {
+    "@mirafive/sdk-server": "^0.5.0",
+    "convex": "^1.25.0"
+  },
+  "size-limit": [
+    {
+      "name": "index",
+      "path": "dist/index.js",
+      "ignore": [
+        "@mirafive/sdk-server",
+        "convex"
+      ],
+      "limit": "1.52 kB",
+      "gzip": true
+    }
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "bun@1.4.2"
+}
