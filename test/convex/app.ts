@@ -1,7 +1,7 @@
 import { actionGeneric, mutationGeneric } from "convex/server"
 import { v } from "convex/values"
 
-import { mira } from "./mirafive.ts"
+import { mira, plain } from "./mirafive.ts"
 import { disabled, keyless } from "./off.ts"
 import { mira as outboxed } from "./outbox.ts"
 
@@ -58,5 +58,16 @@ export const fromAction = actionGeneric({
   args: {},
   handler: async (ctx) => {
     await outboxed.track(ctx, "exported", { userId: "u_42" })
+  }
+})
+
+export const odd = mutationGeneric({
+  args: { outbox: v.optional(v.boolean()) },
+  handler: async (ctx, { outbox }) => {
+    const client = outbox ? outboxed : plain
+
+    await ctx.db.insert("orders", { total: 7 })
+    await client.track(ctx, "odd keys", { properties: { $weird: 1, größe: "XL", ["k".repeat(1100)]: true } })
+    await client.track(ctx, "bigint", { properties: { amount: 10n } })
   }
 })

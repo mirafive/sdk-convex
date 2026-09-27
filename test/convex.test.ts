@@ -1,15 +1,16 @@
 /// <reference types="vite/client" />
+import { Mira } from "@mirafive/sdk-server"
 import { convexTest } from "convex-test"
 import type { DataModelFromSchemaDefinition, GenericActionCtx, GenericMutationCtx } from "convex/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { MiraConvex } from "../src/index.ts"
-import type { SchedulingCtx } from "../src/index.ts"
-import { api, internal } from "./convex/_generated/api.ts"
+import type { DeliverArgs, SchedulingCtx } from "../src/index.ts"
+import { api, internal } from "./convex/_generated/api.js"
 import { mira as typed } from "./convex/mirafive.ts"
 import schema from "./convex/schema.ts"
 
-const modules = import.meta.glob("./convex/**/*.ts")
+const modules = import.meta.glob(["./convex/**/*.{ts,js}", "!./convex/**/*.d.ts"])
 
 interface Sent {
   readonly url: string
@@ -21,22 +22,30 @@ interface Sent {
   }
 }
 
+interface Answer {
+  readonly status?: number
+  readonly body?: Record<string, unknown>
+}
+
 let sent: Sent[] = []
-let statuses: number[] = []
+let answers: Answer[] = []
+
+const failing = (count: number, answer: Answer = { status: 503, body: { code: "oops" } }): Answer[] =>
+  Array.from({ length: count }, () => answer)
 
 beforeEach(() => {
   sent = []
-  statuses = []
+  answers = []
   vi.spyOn(Math, "random").mockReturnValue(0)
   vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
     const body = JSON.parse(init.body as string) as Sent["body"]
-    const status = statuses.shift() ?? 202
+    const answer = answers.shift() ?? {}
 
     sent.push({ url, auth: new Headers(init.headers).get("authorization"), body })
 
     return Response.json(
-      status === 202 ? { batch: body.batch, accepted: body.events.length, dropped: 0 } : { code: "oops" },
-      { status }
+      { batch: body.batch, accepted: body.events.length, dropped: 0, ...answer.body },
+      { status: answer.status ?? 202 }
     )
   })
 })
@@ -124,14 +133,45 @@ describe("scheduling from a mutation", () => {
     vi.useRealTimers()
 
     const [job] = await scheduled(t)
-    const args = job?.args[0] as { events: unknown[]; idempotencyKey: string }
+    const args = job?.args[0] as DeliverArgs
+    const send = vi.spyOn(Mira.prototype, "send")
 
-    statuses = [503, 503, 503, 503]
+    answers = failing(4)
     await expect(t.action(internal.mirafive.deliver, args)).rejects.toMatchObject({ code: "oops" })
     await t.action(internal.mirafive.deliver, args)
 
     expect(sent).toHaveLength(5)
     expect(new Set(sent.map((request) => request.body.batch)).size).toBe(1)
+    // sentAt is fixed at queue time, so every run hands sdk-server the same batch.
+    expect(typeof args.sentAt).toBe("number")
+    expect(send.mock.calls.map(([, options]) => options)).toEqual([
+      { idempotencyKey: args.idempotencyKey, sentAt: args.sentAt },
+      { idempotencyKey: args.idempotencyKey, sentAt: args.sentAt }
+    ])
+  })
+
+  it("never fails the caller's transaction over an event Convex or JSON cannot carry", async () => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const t = convexTest(schema, modules)
+
+    await t.mutation(api.app.odd, {})
+    await t.mutation(api.app.odd, { outbox: true })
+
+    expect(await t.run((ctx) => ctx.db.query("orders").collect())).toHaveLength(2)
+    expect(warn).toHaveBeenCalledTimes(2)
+    expect(String(warn.mock.calls[0]?.[0])).toContain("bigint")
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+    tick()
+    await t.action(internal.outbox.flushOutbox, {})
+
+    const odd = { $weird: 1, größe: "XL", ["k".repeat(1100)]: true }
+
+    expect(sent.map((request) => request.body.events.map((event) => event["properties"]))).toEqual([
+      [odd],
+      [odd]
+    ])
   })
 
   it("drops only the events the server refuses", async () => {
@@ -187,11 +227,9 @@ describe("outbox", () => {
 
     const early = await t.mutation(internal.outbox.outboxRows, { before: 1_500 })
 
-    expect(early.map((row: { event: { properties: unknown } }) => row.event.properties)).toEqual([
-      { total: 1 }
-    ])
+    expect(early.map((row) => JSON.parse(row.event).properties)).toEqual([{ total: 1 }])
 
-    const drop = early.map((row: { _id: string }) => row._id)
+    const drop = early.map((row) => row._id)
 
     await t.mutation(internal.outbox.outboxRows, { before: 1_500, drop })
     await t.mutation(internal.outbox.outboxRows, { before: 1_500, drop })
@@ -204,29 +242,50 @@ describe("outbox", () => {
 
     await t.mutation(api.app.pay, { total: 1, outbox: true })
 
-    statuses = [503, 503, 503, 503]
+    const send = vi.spyOn(Mira.prototype, "send")
+
+    answers = failing(4)
     tick()
     await expect(t.action(internal.outbox.flushOutbox, {})).rejects.toMatchObject({ retryable: true })
     expect(await outboxRows(t)).toHaveLength(1)
 
+    tick()
     await t.action(internal.outbox.flushOutbox, {})
 
     expect(await outboxRows(t)).toHaveLength(0)
     expect(sent).toHaveLength(5)
     expect(new Set(sent.map((request) => request.body.batch)).size).toBe(1)
+    // A later flush of the same rows passes the same sentAt, taken from the rows.
+    expect(send.mock.calls[0]?.[1]).toEqual(send.mock.calls[1]?.[1])
   })
 
-  it("does not wedge on a batch the server refuses", async () => {
+  it("does not wedge on events the server refuses", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {})
     const t = convexTest(schema, modules)
 
     await t.mutation(api.app.pay, { total: 1, outbox: true })
-    statuses = [400]
+    answers = [{ status: 400, body: { code: "validation_failed" } }]
     tick()
     await t.action(internal.outbox.flushOutbox, {})
 
     expect(await outboxRows(t)).toHaveLength(0)
   })
+
+  it.each(["collection_mode_not_allowed", "invalid_json"])(
+    "keeps the rows on 400 %s, which no halving can fix",
+    async (code) => {
+      const t = convexTest(schema, modules)
+
+      await t.mutation(api.app.pay, { total: 1, outbox: true })
+      await t.mutation(api.app.pay, { total: 2, outbox: true })
+      answers = [{ status: 400, body: { code } }]
+      tick()
+
+      await expect(t.action(internal.outbox.flushOutbox, {})).rejects.toMatchObject({ code })
+      expect(sent).toHaveLength(1)
+      expect(await outboxRows(t)).toHaveLength(2)
+    }
+  )
 
   it("schedules from an action, which has no table to write to", async () => {
     vi.useFakeTimers()
@@ -256,7 +315,7 @@ describe("off", () => {
     const mira = new MiraConvex({
       key: "mf_test0000_secret",
       mode: "consentless",
-      deliver: internal.x.deliver
+      deliver: internal.mirafive.deliver
     })
     const ctx = {} as SchedulingCtx
 
@@ -265,7 +324,7 @@ describe("off", () => {
   })
 
   it("refuses an unparseable time at the call site instead of sending epoch 0", async () => {
-    const mira = new MiraConvex({ key: "mf_test0000_secret", deliver: internal.x.deliver })
+    const mira = new MiraConvex({ key: "mf_test0000_secret", deliver: internal.mirafive.deliver })
     const ctx = {} as SchedulingCtx
 
     await expect(mira.track(ctx, "signup", { time: "yesterday-ish" })).rejects.toThrow(TypeError)
@@ -273,6 +332,40 @@ describe("off", () => {
     await expect(mira.trackMany(ctx, [{ name: "a" }, { name: "b", time: "not a date" }])).rejects.toThrow(
       /time must be/
     )
+  })
+
+  it("refuses an empty idempotency key", async () => {
+    const mira = new MiraConvex({ key: "mf_test0000_secret", deliver: internal.mirafive.deliver })
+    const ctx = {} as SchedulingCtx
+
+    await expect(mira.track(ctx, "signup", { idempotencyKey: "" })).rejects.toThrow(TypeError)
+    await expect(mira.trackMany(ctx, [{ name: "signup" }], { idempotencyKey: "" })).rejects.toThrow(
+      /idempotencyKey/
+    )
+  })
+})
+
+describe("the delivery action", () => {
+  it("warns about receipts that dropped events, but not for an install check", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const t = convexTest(schema, modules)
+    const events = JSON.stringify([{ name: "$install_check" }])
+
+    answers = [{ body: { accepted: 0, dropped: 1, reason: "install_check" } }]
+    await t.action(internal.mirafive.deliver, { events, idempotencyKey: "install-check" })
+    expect(warn).not.toHaveBeenCalled()
+
+    answers = [{ body: { accepted: 0, dropped: 1, reason: "allowance_exhausted" } }]
+    await t.action(internal.mirafive.deliver, { events, idempotencyKey: "second" })
+    expect(String(warn.mock.calls[0]?.[0])).toContain("dropped 1 events: allowance_exhausted")
+  })
+
+  it("falls back to the default host for an empty one", async () => {
+    const t = convexTest(schema, modules)
+
+    await t.action(internal.off.deliverBare, { events: '[{"name":"signup"}]', idempotencyKey: "k" })
+
+    expect(sent[0]?.url).toBe("https://events.mirafive.io/v1/batch")
   })
 })
 

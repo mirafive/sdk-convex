@@ -56,5 +56,5 @@
       }
     }
   ],
-  "ignorePatterns": ["dist/**", "test/fixtures/**"]
+  "ignorePatterns": ["dist/**", "test/fixtures/**", "test/convex/_generated/**"]
 }

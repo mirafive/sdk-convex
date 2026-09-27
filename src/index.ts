@@ -31,10 +31,11 @@ export type TrackEvent<E extends Events = Events> = {
   [K in keyof E & string]: Omit<TrackOptions<E[K]>, "idempotencyKey"> & { readonly name: K }
 }[keyof E & string]
 
-/** An event as Convex stores and schedules it: plain JSON, `time` in epoch ms. */
+/** An event as the action parses it back: `time` in epoch ms. */
 export type QueuedEvent = SendEvent
 
-export type DeliverArgs = { events: QueuedEvent[]; idempotencyKey: string }
+/** `events` is a JSON array: Convex refuses some property keys (`$…`, non-ASCII) that JSON carries. */
+export type DeliverArgs = { events: string; idempotencyKey: string; sentAt?: number }
 
 export type DeliverReference = FunctionReference<"action", "internal", DeliverArgs>
 
@@ -44,7 +45,7 @@ export interface SchedulingCtx {
 }
 
 interface Inserter {
-  insert(table: string, document: { event: QueuedEvent }): Promise<unknown>
+  insert(table: string, document: { event: string }): Promise<unknown>
 }
 
 /** Queues one delivery. Default: `ctx.scheduler.runAfter(0, deliver, args)`; pass a workpool's `enqueueAction` for retries. */
@@ -70,9 +71,10 @@ const MAX_EVENTS = 1000
 const MAX_BYTES = 1_000_000
 
 /** The outbox table for your `convex/schema.ts`: `miraOutbox: miraOutboxTable`. */
-export const miraOutboxTable = defineTable({ event: v.any() })
+export const miraOutboxTable = defineTable({ event: v.string() })
 
-export type OutboxRow = { _id: GenericId<typeof TABLE>; _creationTime: number; event: QueuedEvent }
+/** `event` is the event as JSON. */
+export type OutboxRow = { _id: GenericId<typeof TABLE>; _creationTime: number; event: string }
 
 export type OutboxRowsArgs = { before: number; drop?: GenericId<typeof TABLE>[] }
 
@@ -82,12 +84,17 @@ export interface OutboxFunctions {
 }
 
 const encoder = new TextEncoder()
+const HALVE = new Set<string>(["validation_failed", "invalid_event", "payload_too_large"])
+const QUIET = new Set([undefined, "install_check", "bot"])
 
-// A malformed batch never succeeds; halving isolates the bad events instead of losing or wedging the rest.
+// Only a refusal of the events themselves is halved; anything else (key, mode, outage) keeps the rows.
 const refused = (error: unknown): error is Error =>
-  error instanceof TypeError ||
-  (error instanceof MiraError &&
-    (error.status === 400 || error.code === "invalid_event" || error.code === "payload_too_large"))
+  error instanceof TypeError || (error instanceof MiraError && HALVE.has(error.code))
+
+const warn = (message: string): void => {
+  // oxlint-disable-next-line no-console -- Convex logs are the only channel
+  console.warn(`[mirafive] ${message}`)
+}
 
 /** Records events from Convex. Mutations never send: they schedule or write to the outbox, so a rollback sends nothing. */
 export class MiraConvex<E extends Events = Events> {
@@ -134,8 +141,9 @@ export class MiraConvex<E extends Events = Events> {
   /** The internal action that sends one queued delivery. Export it under the name `deliver` points at. */
   deliverAction(): RegisteredAction<"internal", DeliverArgs, Promise<null>> {
     return internalActionGeneric({
-      args: { events: v.array(v.any()), idempotencyKey: v.string() },
-      handler: (_ctx, args: DeliverArgs) => this.#send(args.events, args.idempotencyKey)
+      args: { events: v.string(), idempotencyKey: v.string(), sentAt: v.optional(v.number()) },
+      handler: (_ctx, args: DeliverArgs) =>
+        this.#send(JSON.parse(args.events), args.idempotencyKey, args.sentAt ?? Date.now())
     })
   }
 
@@ -172,7 +180,7 @@ export class MiraConvex<E extends Events = Events> {
           for await (const row of ctx.db
             .query(TABLE)
             .withIndex("by_creation_time", (q) => q.lt("_creationTime", before))) {
-            size += encoder.encode(JSON.stringify(row.event)).length + 1
+            size += encoder.encode(row.event).length + 1
 
             if (taken.length === MAX_EVENTS || (taken.length > 0 && size > MAX_BYTES)) {
               break
@@ -200,11 +208,12 @@ export class MiraConvex<E extends Events = Events> {
 
             const ids = taken.map((row) => row._id)
 
-            // The key is the set of rows, so a batch sent but not yet dropped is stored once when resent.
+            // Key and sentAt come from the rows, so a batch sent but not yet dropped is resent identically.
             // oxlint-disable-next-line no-await-in-loop
             await this.#send(
-              taken.map((row) => row.event),
-              ids.join()
+              taken.map((row): QueuedEvent => JSON.parse(row.event)),
+              ids.join(),
+              Math.floor(taken.at(-1)?._creationTime ?? before)
             )
             // oxlint-disable-next-line no-await-in-loop
             await ctx.runMutation(rows, { before, drop: ids })
@@ -223,6 +232,10 @@ export class MiraConvex<E extends Events = Events> {
 
     if (events.length === 0 || events.length > MAX_EVENTS) {
       throw new TypeError(`trackMany() takes 1–${MAX_EVENTS} events, got ${events.length}`)
+    }
+
+    if (idempotencyKey === "") {
+      throw new TypeError("idempotencyKey must not be empty")
     }
 
     if (
@@ -248,17 +261,26 @@ export class MiraConvex<E extends Events = Events> {
     if (!key?.trim()) {
       if (!this.#warned) {
         this.#warned = true
-        // oxlint-disable-next-line no-console -- Convex logs are the only channel
-        console.warn("[mirafive] no key: run `npx convex env set MIRAFIVE_SECRET_KEY …`; events are dropped")
+        warn("no key: run `npx convex env set MIRAFIVE_SECRET_KEY …`; events are dropped")
       }
 
       return
     }
 
-    // A JSON round trip drops `undefined`, which is not a Convex value.
-    const queued = events.map((event, index): QueuedEvent =>
-      JSON.parse(JSON.stringify({ ...event, time: times[index] }))
-    )
+    // Analytics must never roll back the caller's transaction: an event JSON cannot carry is dropped.
+    const queued = events.flatMap((event, index) => {
+      try {
+        return [JSON.stringify({ ...event, time: times[index] })]
+      } catch (error) {
+        warn(`dropped ${event.name}: ${String(error)}`)
+
+        return []
+      }
+    })
+
+    if (queued.length === 0) {
+      return
+    }
 
     // An action has no `db`; it schedules like any other call.
     const db: Inserter | undefined = outbox ? Reflect.get(ctx, "db") : undefined
@@ -266,32 +288,41 @@ export class MiraConvex<E extends Events = Events> {
     if (db) {
       await Promise.all(queued.map((event) => db.insert(TABLE, { event })))
     } else {
-      const args = { events: queued, idempotencyKey: idempotencyKey ?? crypto.randomUUID() }
+      const args = {
+        events: `[${queued.join()}]`,
+        idempotencyKey: idempotencyKey ?? crypto.randomUUID(),
+        sentAt: now
+      }
 
       await (enqueue ? enqueue(ctx, deliver, args) : ctx.scheduler.runAfter(0, deliver, args))
     }
   }
 
-  async #send(events: QueuedEvent[], idempotencyKey: string): Promise<null> {
+  async #send(events: QueuedEvent[], idempotencyKey: string, sentAt: number): Promise<null> {
     const { key, host, mode } = this.#options
+    // Not an inline literal: sdk-server versions without the `sentAt` option ignore it.
+    const options = { idempotencyKey, sentAt }
 
-    this.#mira ??= new Mira({ key, host, mode })
+    this.#mira ??= new Mira({ key, host: host || undefined, mode })
 
     try {
-      await this.#mira.send(events, { idempotencyKey })
+      const { dropped, reason } = await this.#mira.send(events, options)
+
+      if (dropped > 0 && !QUIET.has(reason)) {
+        warn(`the server dropped ${dropped} events: ${reason}`)
+      }
     } catch (error) {
       if (!refused(error)) {
         throw error
       }
 
       if (events.length === 1) {
-        // oxlint-disable-next-line no-console
-        console.warn(`[mirafive] dropped an event the server refuses: ${error.message}`)
+        warn(`dropped an event the server refuses: ${error.message}`)
       } else {
         const half = events.length >> 1
 
-        await this.#send(events.slice(0, half), `${idempotencyKey}/0`)
-        await this.#send(events.slice(half), `${idempotencyKey}/1`)
+        await this.#send(events.slice(0, half), `${idempotencyKey}/0`, sentAt)
+        await this.#send(events.slice(half), `${idempotencyKey}/1`, sentAt)
       }
     }
 

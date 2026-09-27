@@ -1,7 +1,7 @@
 import { MiraConvex } from "../../src/index.ts"
-import { internal } from "./_generated/api.ts"
+import { internal } from "./_generated/api.js"
 
-export const mira = new MiraConvex({
+export const mira: MiraConvex = new MiraConvex({
   key: "mf_test0000_secret",
   host: "https://collector.test",
   outbox: true,

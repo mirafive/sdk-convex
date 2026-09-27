@@ -68,7 +68,7 @@
         "@mirafive/sdk-server",
         "convex"
       ],
-      "limit": "1.52 kB",
+      "limit": "1.73 kB",
       "gzip": true
     }
   ],
