@@ -109,12 +109,16 @@ describe("scheduling from a mutation", () => {
     await t.mutation(api.app.checkout, { key: "order-981" })
     await t.finishAllScheduledFunctions(vi.runAllTimers)
 
+    // The two scheduled deliveries run concurrently, so find each batch by what it carries.
+    const orders = sent.find((request) => request.body.events[0]?.["name"] !== "$identify")
+    const identify = sent.find((request) => request.body.events[0]?.["name"] === "$identify")
+
     expect(sent).toHaveLength(2)
-    expect(sent[0]?.body.events.map((event) => event["properties"])).toEqual([{ total: 1 }, { total: 2 }])
-    expect(sent[0]?.body.events[0]?.["time"]).toBe(Date.parse("2026-09-27T10:00:00Z"))
+    expect(orders?.body.events.map((event) => event["properties"])).toEqual([{ total: 1 }, { total: 2 }])
+    expect(orders?.body.events[0]?.["time"]).toBe(Date.parse("2026-09-27T10:00:00Z"))
     // The batch id is UUIDv8(SHA-256("mirafive:batch:order-981")), PROTOCOL §5.
-    expect(sent[0]?.body.batch).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-8/)
-    expect(sent[1]?.body.events).toEqual([
+    expect(orders?.body.batch).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-8/)
+    expect(identify?.body.events).toEqual([
       {
         name: "$identify",
         userId: "u_42",
