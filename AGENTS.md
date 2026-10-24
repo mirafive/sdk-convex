@@ -2,8 +2,8 @@
 
 `@mirafive/sdk-convex`: records MIRA FIVE events from Convex mutations and actions by
 scheduling (or writing to an outbox table) and delivering through `@mirafive/sdk-server`.
-Part of the MIRA FIVE SDK family; the wire contract, flag semantics and public API live in
-[mirafive/protocol](https://github.com/mirafive/protocol) (PROTOCOL.md, FLAGS.md, API.md).
+Part of the MIRA FIVE SDK family; the wire contract and public API live in
+[mirafive/protocol](https://github.com/mirafive/protocol) (PROTOCOL.md, API.md).
 
 ## Commands
 
