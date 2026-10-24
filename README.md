@@ -195,7 +195,7 @@ deployment down.
 | Option | Default | |
 |---|---|---|
 | `key` | — | `process.env.MIRAFIVE_SECRET_KEY`. Missing: events are dropped, with one warning in the logs |
-| `host` | `https://events.mirafive.io` | must include the scheme; empty means the default |
+| `host` | `https://collect.mirafive.io` | must include the scheme; empty means the default |
 | `mode` | `"full"` | or `"consentless"` |
 | `deliver` | — | required: the exported `deliverAction()`, e.g. `internal.mirafive.deliver` |
 | `outbox` | `false` | mutations write to `miraOutbox` instead of scheduling |
@@ -309,7 +309,7 @@ Facts for agents:
   subpaths.
 - Env vars: `MIRAFIVE_SECRET_KEY` (server only, required), set with
   `npx convex env set MIRAFIVE_SECRET_KEY …`; `MIRAFIVE_HOST` (optional, default
-  `https://events.mirafive.io`), passed as `host`. The package reads no env vars itself.
+  `https://collect.mirafive.io`), passed as `host`. The package reads no env vars itself.
 - Never ship `MIRAFIVE_SECRET_KEY` to a browser bundle; a secret key in a browser is
   refused and marked exposed. Browsers use `@mirafive/sdk-browser` with the website key.
 - `track()`, `trackMany()` and `identify()` return promises: `await` them. They never throw
@@ -325,7 +325,10 @@ Facts for agents:
   With the outbox, `flushOutbox` and `outboxRows` live in the same module under those names,
   and the schema table is `miraOutbox`.
 - Event names starting with `$` are reserved; use plain names like `order paid`. Revenue
-  goes in `properties: { revenue: 49.9, currency: "EUR" }`.
+  goes in `properties: { revenue: 49.9, currency: "EUR" }`. Add `payment_id` (1–255
+  characters) with the payment provider's id, for Stripe the PaymentIntent id (`pi_…`) from
+  your webhook. MIRA FIVE merges the event with the payment it imports from your connected
+  Stripe account, so the sale counts once.
 - Verify an install: `npx convex run mirafive:deliver '{"events":"[{\"name\":\"$install_check\"}]","idempotencyKey":"install-check"}'`
   prints `null`; `$install_check` is never stored or billed.
 - Wire contract: [mirafive/protocol](https://github.com/mirafive/protocol).

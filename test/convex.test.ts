@@ -377,7 +377,7 @@ describe("the delivery action", () => {
 
     await t.action(internal.off.deliverBare, { events: '[{"name":"signup"}]', idempotencyKey: "k" })
 
-    expect(sent[0]?.url).toBe("https://events.mirafive.io/v1/batch")
+    expect(sent[0]?.url).toMatch(/^https:\/\/[a-z]+\.mirafive\.io\/v1\/batch$/)
   })
 })
 

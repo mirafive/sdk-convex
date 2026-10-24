@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Revenue events may carry `payment_id`, the payment provider's id of the payment (1–255 characters), next to `revenue` and `currency`. Nothing changes in the API: pass it in the properties. The README shows a Stripe example.
+- The default ingest host is `https://collect.mirafive.io`.
+
 ## 1.0.0 — 2026-09-27
 
 Rebuilt from scratch on `@mirafive/sdk-server` 1.0 and the v1 ingest protocol.
