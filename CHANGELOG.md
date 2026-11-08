@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.0 — 2026-11-08
+
+### Added
+
+- `mira.dealStage(ctx, { dealId, stage, value?, userId })` and `mira.dealLost(ctx, { dealId,
+  reason?, userId })`: a deal of MIRA FIVE's pipeline reached a stage or was lost, scheduled in the
+  mutation's transaction and delivered after it commits (`@mirafive/node` 2.1.0).
+
 ## 2.0.0 — 2026-11-08
 
 A rewrite for the current MIRA FIVE platform: consent tiers, the revenue ledger, touchpoints and

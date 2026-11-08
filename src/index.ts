@@ -29,6 +29,8 @@ import {
   eventIdFor,
   Mira,
   MiraError,
+  type DealLostInput,
+  type DealStageInput,
   type EventMap,
   type GroupInput,
   type IdentifyInput,
@@ -40,6 +42,8 @@ import {
 
 export { eventIdFor, MiraError } from "@mirafive/node";
 export type {
+  DealLostInput,
+  DealStageInput,
   EventMap,
   GroupInput,
   IdentifyInput,
@@ -60,7 +64,9 @@ export type MiraEvent =
   | ({ method: "identify" } & IdentifyInput & Dedupe)
   | ({ method: "group" } & GroupInput & Dedupe)
   | ({ method: "revenue" } & RevenueInput & Dedupe)
-  | ({ method: "touchpoint" } & TouchpointInput & Dedupe);
+  | ({ method: "touchpoint" } & TouchpointInput & Dedupe)
+  | ({ method: "dealStage" } & DealStageInput & Dedupe)
+  | ({ method: "dealLost" } & DealLostInput & Dedupe);
 
 /** The part of a Convex mutation or action context this package uses. */
 export interface SchedulerCtx {
@@ -118,6 +124,19 @@ export class MiraConvex<Events extends EventMap = EventMap> {
 
   touchpoint(ctx: SchedulerCtx, input: TouchpointInput & Dedupe): Promise<void> {
     return this.schedule(ctx, [{ method: "touchpoint", ...input }]);
+  }
+
+  /**
+   * A deal of the pipeline reached a stage, sent after the mutation that moved it commits.
+   * A stable `dedupeKey` (`case:${id}:stage:${stage}`) keeps a retried mutation from counting twice.
+   */
+  dealStage(ctx: SchedulerCtx, input: DealStageInput & Dedupe): Promise<void> {
+    return this.schedule(ctx, [{ method: "dealStage", ...input }]);
+  }
+
+  /** A deal was lost, sent after the mutation commits. */
+  dealLost(ctx: SchedulerCtx, input: DealLostInput & Dedupe): Promise<void> {
+    return this.schedule(ctx, [{ method: "dealLost", ...input }]);
   }
 
   /** Several events in one scheduled delivery. */
@@ -182,6 +201,12 @@ export class MiraConvex<Events extends EventMap = EventMap> {
           break;
         case "touchpoint":
           mira.touchpoint({ ...(input as TouchpointInput), eventId });
+          break;
+        case "dealStage":
+          mira.dealStage({ ...(input as DealStageInput), eventId });
+          break;
+        case "dealLost":
+          mira.dealLost({ ...(input as DealLostInput), eventId });
           break;
         default:
           errors.push(`MIRA FIVE: unknown method: ${String(method)}`);
