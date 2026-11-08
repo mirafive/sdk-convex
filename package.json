@@ -1,21 +1,21 @@
 {
-  "name": "@mirafive/sdk-convex",
-  "version": "1.0.0",
-  "description": "MIRA FIVE SDK for Convex",
+  "name": "@mirafive/convex",
+  "version": "2.0.0",
+  "description": "MIRA FIVE for Convex: track events and revenue from mutations; they are delivered by an internal action only after the transaction commits. No dependency on convex.",
   "keywords": [
     "analytics",
+    "attribution",
     "convex",
-    "gdpr",
+    "mira-five",
     "mirafive",
-    "privacy",
-    "server"
+    "revenue"
   ],
-  "homepage": "https://mirafive.io",
+  "homepage": "https://github.com/mirafive/sdk-convex#readme",
   "bugs": {
-    "email": "support@mirafive.io"
+    "url": "https://github.com/mirafive/sdk-convex/issues"
   },
   "license": "MIT",
-  "author": "MIRA FIVE <support@mirafive.io>",
+  "author": "Cloo GmbH <hallo@mirafive.io> (https://mirafive.io)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mirafive/sdk-convex.git"
@@ -25,58 +25,38 @@
   ],
   "type": "module",
   "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
-    "build": "tsdown",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "lint": "oxlint --type-aware --deny-warnings",
+    "build": "bun run build.ts",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "size": "size-limit",
-    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build && publint --strict && attw --pack --profile esm-only && size-limit",
-    "prepublishOnly": "bun run check"
+    "lint": "oxlint",
+    "test": "bun test",
+    "typecheck": "bun check"
+  },
+  "dependencies": {
+    "@mirafive/node": "^2.0.0"
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.18.5",
-    "@mirafive/sdk-server": "^1.0.0",
-    "@size-limit/preset-small-lib": "^14.3.0",
-    "@types/node": "^26.6.5",
-    "convex": "^1.48.0",
-    "convex-test": "^0.0.65",
-    "oxfmt": "^0.74.0",
-    "oxlint": "^1.89.0",
-    "oxlint-tsgolint": "^7.0.2005",
-    "publint": "^0.3.25",
-    "size-limit": "^14.3.0",
-    "tsdown": "0.23.1",
-    "typescript": "^7.0.2",
-    "vitest": "^5.0.5"
-  },
-  "peerDependencies": {
-    "@mirafive/sdk-server": "^1.0.0",
-    "convex": "^1.25.0"
-  },
-  "size-limit": [
-    {
-      "name": "index",
-      "path": "dist/index.js",
-      "ignore": [
-        "@mirafive/sdk-server",
-        "convex"
-      ],
-      "limit": "1.73 kB",
-      "gzip": true
-    }
-  ],
-  "engines": {
-    "node": ">=20"
+    "@mirafive/protocol": "^2.0.0",
+    "@types/bun": "^1.4.4",
+    "oxfmt": "^0.77.0",
+    "oxlint": "^1.92.0",
+    "oxlint-tsgolint": "^7.0.2006",
+    "typescript": "^7.0.2"
   },
   "packageManager": "bun@1.4.4"
 }

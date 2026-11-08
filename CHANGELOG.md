@@ -1,35 +1,28 @@
 # Changelog
 
-## Unreleased
+## 2.0.0 — 2026-11-08
 
-- Revenue events may carry `payment_id`, the payment provider's id of the payment (1–255 characters), next to `revenue` and `currency`. Nothing changes in the API: pass it in the properties. The README shows a Stripe example.
-- The default ingest host is `https://collect.mirafive.io`.
+A rewrite for the current MIRA FIVE platform: consent tiers, the revenue ledger, touchpoints and
+the `/v1/batch` wire format.
 
-## 1.0.0 — 2026-09-27
+### Added
 
-Rebuilt from scratch on `@mirafive/sdk-server` 1.0 and the v1 ingest protocol.
+- `mira.revenue(ctx, …)` and friends schedule delivery in the mutation's transaction;
+  `dedupeKey`; touchpoints; no dependency on `convex`.
 
-- `MiraConvex`: `track()`, `trackMany()` and `identify()` from mutations and actions. A
-  mutation schedules the delivery with `runAfter(0)`, so a rolled-back transaction sends
-  nothing. `identify(ctx, userId, traits?, { anonymousId? })` links the browser's anonymous
-  id. Typed events (types only), `mode: "consentless"`, `disabled`, and a missing key
-  drops events with one warning instead of failing the deployment. An unparseable `time`
-  throws a `TypeError` at the call site rather than being sent as epoch 0.
-- `deliverAction()`: the internal action that sends one delivery with an idempotency key
-  fixed at enqueue time, so every retry of it is stored once. `enqueue` hands deliveries
-  to a workpool.
-- Outbox: `outbox: true`, `miraOutboxTable` in the customer's own schema, and
-  `flushOutbox()` for a cron. Batches of up to 1000 events or 1 MB, read below a
-  `_creationTime` cutoff, named after their row ids.
-- Events are queued as JSON strings (scheduler arguments and `event: v.string()` outbox
-  rows), so property keys Convex refuses as field names are fine; an event JSON cannot
-  carry (`BigInt`, cycles) is dropped with a warning instead of failing the caller's
-  transaction. `sentAt` and each event's `time` are fixed at queue time (from the rows
-  for the outbox) and `sentAt` is passed to sdk-server's `send()`, so a rerun sends the
-  byte-identical batch.
-- Events the server refuses (`400 validation_failed`, `invalid_event`,
-  `payload_too_large`) are isolated by halving the batch and dropped one by one, so they
-  never block the rest; other refusals (`collection_mode_not_allowed`, `invalid_json`)
-  fail the run and keep outbox rows. Receipts with dropped events are logged, except
-  `bot` and `install_check`.
-- An empty `idempotencyKey` throws a `TypeError`; `host: ""` means the default host.
+### Migrating from 1.x
+
+- **Keys:** projects have a public key (`mira_pk_…`, browser and apps) and a secret key
+  (`mira_sk_…`, servers). `mf_…` website and secret keys are gone. Every SDK refuses the wrong
+  kind of key with a clear message.
+- **Host:** `https://events.mirafive.io` (was `collect.mirafive.io`).
+- **Environment:** `MIRAFIVE_SECRET_KEY` and `MIRAFIVE_HOST` on servers; the public key as
+  `NEXT_PUBLIC_MIRAFIVE_KEY`, `VITE_MIRAFIVE_KEY`, `PUBLIC_MIRAFIVE_KEY` (Astro),
+  `NUXT_PUBLIC_MIRAFIVE_KEY` or `MIRAFIVE_PUBLIC_KEY` (PHP templates).
+- **Consent:** there are no modes any more. The browser SDK follows the site's consent banner
+  (`consent: "auto"`) and collects what each tier allows: cookieless without consent, an
+  anonymous id with analytics consent, a user with `identify`. Server events carry the consent
+  they were collected under (default `not_applicable`).
+- **Revenue:** `revenue()` on the server SDKs, in integer minor units with an ISO currency,
+  `entryId` (replaces `payment_id`), `entryKind`, fees, tax, refunds and subscriptions. Revenue
+  properties on plain events are no longer read.
