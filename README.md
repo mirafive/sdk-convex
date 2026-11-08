@@ -65,8 +65,6 @@ export const pay = mutation({
 | `mira.group(ctx, { groupId, traits? })`                                       | The company or account                                                                |
 | `mira.revenue(ctx, { amount, currency, entryId?, subscription?, … })`         | Money for the revenue ledger                                                          |
 | `mira.touchpoint(ctx, { kind, source \| channel, userId \| anonymousId, … })` | A touchpoint that is not a visit                                                      |
-| `mira.dealStage(ctx, { dealId, stage, value?, userId \\                       | anonymousId })`                                                                       | A deal of the pipeline reached a stage (value in minor units, expected, not revenue) |
-| `mira.dealLost(ctx, { dealId, reason?, userId \\                              | anonymousId })`                                                                       | A deal was lost                                                                      |
 | `mira.schedule(ctx, events)`                                                  | Several at once (`{ method: "track", … }`)                                            |
 | `mira.deliver(events)`                                                        | Sends now; for the internal action. Returns `{ sent, failed, errors }`, never throws. |
 

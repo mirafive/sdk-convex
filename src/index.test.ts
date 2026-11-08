@@ -130,27 +130,3 @@ describe("MiraConvex", () => {
     expect(result.errors[0]).toContain("MIRAFIVE_SECRET_KEY");
   });
 });
-
-describe("deal events", () => {
-  test("a mutation schedules deal stages and losses; delivery sends them in the wire format", async () => {
-    const { ctx, scheduled } = fakeCtx();
-    const fake = fakeFetch();
-    const mira = new MiraConvex(DELIVER, { ...options, fetch: fake.fetch });
-
-    await mira.dealStage(ctx, {
-      dealId: "case_17",
-      stage: "consultation_booked",
-      userId: "u1",
-      value: 21_900,
-      dedupeKey: "case:17:stage:consultation_booked",
-    });
-    await mira.dealLost(ctx, { dealId: "case_18", userId: "u1", reason: "too_expensive" });
-    const events = scheduled.flatMap((item) => item.args.events);
-    expect(events.map((event) => event.method)).toEqual(["dealStage", "dealLost"]);
-
-    expect(await mira.deliver(events)).toEqual({ sent: 2, failed: 0, errors: [] });
-    expect(fake.events.map((event) => event.event)).toEqual(["$deal_stage", "$deal_lost"]);
-    expect(fake.events[0]?.event_id).toBe(await eventIdFor("case:17:stage:consultation_booked"));
-    for (const event of fake.events) expect(validateEvent(event)).toEqual([]);
-  });
-});
