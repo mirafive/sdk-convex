@@ -58,17 +58,17 @@ export const pay = mutation({
 });
 ```
 
-| Method                                                                        | Sends                                                                                 |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `mira.track(ctx, { event, userId?, properties?, … })`                         | A custom event                                                                        |
-| `mira.identify(ctx, { userId, traits?, externalIds? })`                       | Who the user is                                                                       |
-| `mira.group(ctx, { groupId, traits? })`                                       | The company or account                                                                |
-| `mira.revenue(ctx, { amount, currency, entryId?, subscription?, … })`         | Money for the revenue ledger                                                          |
-| `mira.touchpoint(ctx, { kind, source \| channel, userId \| anonymousId, … })` | A touchpoint that is not a visit                                                      |
-| `mira.dealStage(ctx, { dealId, stage, value?, userId \\                       | anonymousId })`                                                                       | A deal of the pipeline reached a stage (value in minor units, expected, not revenue) |
-| `mira.dealLost(ctx, { dealId, reason?, userId \\                              | anonymousId })`                                                                       | A deal was lost                                                                      |
-| `mira.schedule(ctx, events)`                                                  | Several at once (`{ method: "track", … }`)                                            |
-| `mira.deliver(events)`                                                        | Sends now; for the internal action. Returns `{ sent, failed, errors }`, never throws. |
+| Method                                                                        | Sends                                                                                                                                       |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mira.track(ctx, { event, userId?, properties?, … })`                         | A custom event                                                                                                                              |
+| `mira.identify(ctx, { userId, traits?, externalIds? })`                       | Who the user is                                                                                                                             |
+| `mira.group(ctx, { groupId, traits? })`                                       | The company or account                                                                                                                      |
+| `mira.revenue(ctx, { amount, currency, entryId?, subscription?, … })`         | Money for the revenue ledger                                                                                                                |
+| `mira.touchpoint(ctx, { kind, source \| channel, userId \| anonymousId, … })` | A touchpoint that is not a visit                                                                                                            |
+| `mira.dealStage(ctx, { dealId, stage, value?, userId })`                      | A deal of the pipeline reached a stage (`anonymousId` instead of `userId` works too; `value` in minor units is expected value, not revenue) |
+| `mira.dealLost(ctx, { dealId, reason?, userId })`                             | A deal was lost                                                                                                                             |
+| `mira.schedule(ctx, events)`                                                  | Several at once (`{ method: "track", … }`)                                                                                                  |
+| `mira.deliver(events)`                                                        | Sends now; for the internal action. Returns `{ sent, failed, errors }`, never throws.                                                       |
 
 Every method takes the same fields as [`@mirafive/node`](https://github.com/mirafive/sdk-node#readme)
 plus `dedupeKey`. `Date` values are converted for the scheduler. Scheduling never fails your
