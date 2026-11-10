@@ -29,10 +29,12 @@ import {
   eventIdFor,
   Mira,
   MiraError,
+  type DeletePersonOptions,
   type EventMap,
   type GroupInput,
   type IdentifyInput,
   type MiraOptions,
+  type PersonErasure,
   type RevenueInput,
   type TouchpointInput,
   type TrackInput,
@@ -40,10 +42,12 @@ import {
 
 export { eventIdFor, MiraError } from "@mirafive/node";
 export type {
+  DeletePersonOptions,
   EventMap,
   GroupInput,
   IdentifyInput,
   MiraOptions,
+  PersonErasure,
   RevenueInput,
   TouchpointInput,
   TrackInput,
@@ -137,6 +141,23 @@ export class MiraConvex<Events extends EventMap = EventMap> {
         new MiraError("dropped", "could not schedule delivery", { cause: error }),
       );
     }
+  }
+
+  /**
+   * Erases one person (GDPR Art. 17) with the same effect as the dashboard's People page, and
+   * resolves with the proof (`request_id`, rows `deleted` per table). Call it from an action
+   * (a mutation cannot use the network), for example an internal action that a mutation
+   * schedules, or one that runs in a workpool.
+   *
+   * Unlike the event methods it does not queue and it throws a `MiraError`: `retryable` is true
+   * for a busy or unreachable ingest (`rate_limited`, `unavailable`), so let the workpool retry
+   * those; `config` (no, wrong or public key) and `invalid_input` (a bad id) will not succeed.
+   * The erasure is idempotent: an unknown or already erased person resolves with zero rows, so a
+   * retry is always safe. Events for the person that arrive afterwards are refused for 30 days.
+   */
+  async deletePerson(userId: string, options?: DeletePersonOptions): Promise<PersonErasure> {
+    const mira = new Mira({ ...this.options, onError: (error) => this.options.onError?.(error) });
+    return mira.deletePerson(userId, options);
   }
 
   /**

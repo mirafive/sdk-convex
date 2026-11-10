@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.2.0 — 2026-11-10
+
+### Added
+
+- `mira.deletePerson(userId)`: erases one person (GDPR Art. 17) from an action with the secret
+  key and resolves with the proof. It throws a `MiraError` with `retryable` instead of queueing,
+  so a workpool can retry it; the erasure is idempotent. See `@mirafive/node` 2.3.1.
+
+### Changed
+
+- Requires `@mirafive/node` 2.3.1 and `@mirafive/protocol` 2.3.0.
+
 ## 2.1.2 — 2026-11-10
 
 ### Changed

@@ -1,6 +1,6 @@
 {
   "name": "@mirafive/convex",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "MIRA FIVE for Convex: track events and revenue from mutations; they are delivered by an internal action only after the transaction commits. No dependency on convex.",
   "keywords": [
     "analytics",
@@ -48,10 +48,10 @@
     "typecheck": "bun check"
   },
   "dependencies": {
-    "@mirafive/node": "^2.2.1"
+    "@mirafive/node": "^2.3.1"
   },
   "devDependencies": {
-    "@mirafive/protocol": "^2.2.1",
+    "@mirafive/protocol": "^2.3.0",
     "@types/bun": "^1.4.4",
     "oxfmt": "^0.78.0",
     "oxlint": "^1.93.0",
