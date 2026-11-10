@@ -72,6 +72,29 @@ Every method takes the same fields as [`@mirafive/node`](https://github.com/mira
 plus `dedupeKey`. `Date` values are converted for the scheduler. Scheduling never fails your
 mutation: a problem goes to `onError` (`new MiraConvex(ref, { onError })`).
 
+## Erase a person (GDPR Art. 17)
+
+```ts
+// convex/privacy.ts, in an internal action (an action can use the network)
+export const erasePerson = internalAction({
+  args: { customerId: v.string() },
+  handler: async (_ctx, { customerId }) => {
+    const proof = await mira.deletePerson(customerId); // { request_id, deleted, revenue_kept, … }
+    return proof.request_id;
+  },
+});
+```
+
+It erases the person with the same effect as the dashboard's People page: events, devices, traits,
+ids in other systems and touchpoints. Revenue stays in the totals, without the person. `userId` is
+the id you send in events, exactly.
+
+Unlike the event methods it does not queue and it throws a `MiraError`. `error.retryable` is true
+for a busy or unreachable ingest (`rate_limited`, `unavailable`): let your workpool retry those. A
+missing, wrong or public key (`config`) and a bad id (`invalid_input`) never succeed. The erasure is
+idempotent: an unknown or already erased person resolves with zero rows, so a retry is always safe.
+Events that name the person afterwards are refused for 30 days: stop sending them.
+
 ## For AI coding assistants
 
 Rules for integrating MIRA FIVE correctly. They hold for every MIRA FIVE SDK.

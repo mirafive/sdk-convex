@@ -130,3 +130,35 @@ describe("MiraConvex", () => {
     expect(result.errors[0]).toContain("MIRAFIVE_SECRET_KEY");
   });
 });
+
+describe("deletePerson", () => {
+  test("erases through the node client and returns the proof", async () => {
+    const proof = { request_id: "r1", deleted: { events: 1 }, revenue_kept: 0, completed_at: "x" };
+    const calls: { url: string; method: string | undefined }[] = [];
+    const fetch = (async (url: string, init: RequestInit) => {
+      calls.push({ url, method: init.method });
+      return Response.json(proof);
+    }) as unknown as typeof globalThis.fetch;
+    const mira = new MiraConvex(DELIVER, { ...options, fetch });
+    expect(await mira.deletePerson("cust 1")).toEqual(proof);
+    expect(calls).toEqual([
+      { url: "https://ingest.example/v1/persons/cust%201", method: "DELETE" },
+    ]);
+  });
+
+  test("throws a retryable MiraError for a busy ingest and a final one for a bad key", async () => {
+    const busy = (async () =>
+      Response.json({ error: "rate_limited" }, { status: 429 })) as unknown as typeof fetch;
+    const busyError = await new MiraConvex(DELIVER, { ...options, fetch: busy })
+      .deletePerson("u1", { maxRetries: 0 })
+      .catch((error: unknown) => error);
+    expect(busyError).toMatchObject({ name: "MiraError", code: "rate_limited", retryable: true });
+
+    const refused = (async () =>
+      Response.json({ error: "unknown_key" }, { status: 401 })) as unknown as typeof fetch;
+    const refusedError = await new MiraConvex(DELIVER, { ...options, fetch: refused })
+      .deletePerson("u1")
+      .catch((error: unknown) => error);
+    expect(refusedError).toMatchObject({ code: "config", status: 401, retryable: false });
+  });
+});
