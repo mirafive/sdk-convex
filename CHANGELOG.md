@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.2 — 2026-11-10
+
+### Changed
+
+- Requires `@mirafive/node` 2.2.1 (was `^2.1.1`): `fee` and `tax` on `revenue()` are deprecated
+  there and no longer sent; passing them still compiles and does nothing.
+- Built and checked with oxfmt 0.78 and oxlint 1.93.
+
 ## 2.1.1 — 2026-11-08
 
 ### Removed
